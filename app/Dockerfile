@@ -4,7 +4,6 @@ FROM node:18-alpine
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
-#ENV TwelveFactor=quest001001222\
 # Set environment variables for the application
 ENV SECRET_WORD="your_secret_word" 
 
