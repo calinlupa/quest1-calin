@@ -5,7 +5,7 @@ FROM node:18-alpine
 WORKDIR /usr/src/app
 
 # Set environment variables for the application
-ENV SECRET_WORD="your_secret_word" 
+ENV SECRET_WORD="" 
 
 # Copy package.json and package-lock.json (if available)
 COPY package.json ./
