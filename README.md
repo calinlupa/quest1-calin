@@ -1,110 +1,104 @@
-# Project Overview
+# Rearc Quest Submission
 
-This project demonstrates a simple application deployed to Google Cloud Run using Docker and Terraform.
+This project demonstrates the deployment of Rearc's Quest web application to Google Cloud . 
+It deplois the app using Cloud Run service, in two different regions for high availability, fronted by a Global Load Balancer (GLB). The infrastructure is managed using Terraform.
+
+## Project Overview
+
+The project structure is as follows :
+
+*   **app:** The application code and binaries are in the `app` directory.  
+
+*   **infra:** The infrastructure code is in the `infra` directory, and defines the following resources:
+
+    *   **Google Cloud Run Services:** The application is deployed as two separate Cloud Run services, one in `us-central1` and another in `europe-west1`.
+    *   **Google Secret Manager:** A secret is used to store a `SECRET_WORD` which is then injected into the Cloud Run containers as an environment variable.
+    *   **Global Load Balancer:** A GLB is configured to distribute traffic between the two Cloud Run services, providing a single public IP address for users.
 
 ## Prerequisites
 
-Before you begin, ensure you have the following tools installed and configured:
+*   Google Cloud SDK (`gcloud`) installed and configured.
+*   Terraform installed.
+*   A Google Cloud project with the required APIs enabled (Cloud Run, Secret Manager, Compute Engine).
+*   An Artifact Registry repository to store the container image.
 
-*   **Docker:** For building and managing container images.
-*   **Google Cloud SDK (gcloud CLI):** For interacting with Google Cloud services, including Artifact Registry. Ensure you are authenticated (`gcloud auth login`) and have set your project (`gcloud config set project <PROJECT_ID>`).
-*   **Terraform:** For deploying infrastructure as code.
+## Building and Pushing the Container
 
-## 1. Building and Pushing the Docker Image to Artifact Registry
-
-Follow these steps to build your application's Docker image and push it to Google Cloud Artifact Registry.
-
-1.  **Navigate to the application directory:**
+1.  **Build the Docker image:**
 
     ```bash
-    cd app
+    docker build -t rearc-quest-submission:latest app/
     ```
 
-2.  **Build the Docker image:**
-    This command builds the Docker image and tags it as `app:latest`.
+2.  **Tag the image for Artifact Registry:**
 
     ```bash
-    docker build -t app .
+    docker tag rearc-quest-submission:latest us-central1-docker.pkg.dev/calin-rearc/rearc-quest/rearc-quest-submission:latest
     ```
 
-3.  **Configure Docker to authenticate with Artifact Registry:**
-    Replace `<REGION>` with your desired Google Cloud region (e.g., `us-central1`).
+3.  **Push the image to Artifact Registry:**
 
     ```bash
-    gcloud auth configure-docker <REGION>-docker.pkg.dev
+    docker push us-central1-docker.pkg.dev/calin-rearc/rearc-quest/rearc-quest-submission:latest
     ```
 
-4.  **Create an Artifact Registry repository (if you don't have one):**
-    Replace `<REGION>` with your desired Google Cloud region and `<REPOSITORY_NAME>` with a name for your Docker repository (e.g., `cloud-run-repo`).
+## Managing the Secret Word
+
+The application expects a secret word to be available as an environment variable `SECRET_WORD`. This is managed using Google Secret Manager.
+
+1.  **Create the secret:**
 
     ```bash
-    gcloud artifacts repositories create <REPOSITORY_NAME> \
-      --repository-format=docker \
-      --location=<REGION> \
-      --description="Docker repository for Cloud Run application images"
+    gcloud secrets create SECRET_WORD --replication-policy="automatic"
     ```
 
-5.  **Tag the Docker image for Artifact Registry:**
-    Replace `<REGION>`, `<PROJECT_ID>`, and `<REPOSITORY_NAME>` with your specific values.
+2.  **Add a version to the secret:**
 
     ```bash
-    docker tag app <REGION>-docker.pkg.dev/<PROJECT_ID>/<REPOSITORY_NAME>/app:latest
+    gcloud secrets versions add SECRET_WORD --data="your-secret-word"
     ```
 
-6.  **Push the Docker image to Artifact Registry:**
-    This will upload your tagged image to the specified Artifact Registry repository.
+The Terraform configuration will automatically fetch the latest version of this secret and inject it into the Cloud Run services.
 
-    ```bash
-    docker push <REGION>-docker.pkg.dev/<PROJECT_ID>/<REPOSITORY_NAME>/app:latest
-    ```
+## Infrastructure Deployment with Terraform
 
-## 2. Terraform Deployment
-
-This section explains the Terraform configuration and how to deploy the application to Google Cloud Run.
-
-### Terraform Files Explained
-
-The `infra` directory contains the Terraform configuration for deploying the application.
-
-*   **`infra/main.tf`**: This is the main Terraform configuration file. It orchestrates the deployment by calling the `cloud_run` module and passing necessary variables. It defines the Google Cloud project and region where resources will be deployed.
-*   **`infra/variables.tf`**: This file defines input variables for the Terraform configuration, such as `project_id`, `region`, and `image_name`. These variables allow you to customize the deployment without modifying the core configuration.
-*   **`infra/modules/cloud_run/`**: This directory contains a reusable Terraform module specifically for deploying a Google Cloud Run service.
-    *   **`infra/modules/cloud_run/main.tf`**: Defines the Google Cloud Run service resource, including its name, image, and other configurations.
-    *   **`infra/modules/cloud_run/variables.tf`**: Defines the input variables required by the `cloud_run` module (e.g., `service_name`, `image_url`).
-
-### Deploying with Terraform
-
-1.  **Navigate to the Terraform infrastructure directory:**
+1.  **Initialize Terraform:**
 
     ```bash
     cd infra
-    ```
-
-2.  **Initialize Terraform:**
-    This command initializes the Terraform working directory, downloading necessary providers and modules.
-
-    ```bash
     terraform init
     ```
 
-3.  **Review the deployment plan:**
-    This command generates an execution plan, showing what actions Terraform will take without actually performing them. Replace `<PROJECT_ID>`, `<REGION>`, and `<REPOSITORY_NAME>` with your specific values. The `image_name` should be the full path to the Docker image you pushed to Artifact Registry.
+2.  **Review the deployment plan:**
 
     ```bash
-    terraform plan \
-      -var="project_id=<PROJECT_ID>" \
-      -var="region=<REGION>" \
-      -var="image_name=<REGION>-docker.pkg.dev/<PROJECT_ID>/<REPOSITORY_NAME>/app:latest"
+    terraform plan
     ```
 
-4.  **Apply the deployment:**
-    This command executes the actions outlined in the plan, deploying your Cloud Run service. Confirm the prompt by typing `yes`.
+3.  **Apply the configuration:**
 
     ```bash
-    terraform apply \
-      -var="project_id=<PROJECT_ID>" \
-      -var="region=<REGION>" \
-      -var="image_name=<REGION>-docker.pkg.dev/<PROJECT_ID>/<REPOSITORY_NAME>/app:latest"
+    terraform apply
     ```
 
-After successful application, Terraform will output the URL of your deployed Cloud Run service.
+## High Availability and Global Load Balancer
+
+The application is deployed to two GCP regions (`us-central1` and `europe-west1`) to ensure high availability. A Global Load Balancer is configured to direct user traffic to the nearest healthy region. This setup provides resilience against regional outages and minimizes latency for users around the world.
+
+## Terraform Output
+
+After a successful `terraform apply`, you will see the following outputs:
+
+*   `cloud_run_service_url`: The URLs for the individual Cloud Run services in each region.
+*   `glb_ip_address`: The public IP address of the Global Load Balancer. You can access the application by navigating to this IP address in your web browser.
+
+## Given more time, I would improve:
+
+*   **CI/CD Pipeline:** Automate the entire process of building, testing, and deploying the application using a CI/CD pipeline (e.g., Cloud Build, GitHub Actions). This would include steps for running tests, scanning the container image for vulnerabilities, and deploying to a staging environment before promoting to production.
+*   **Enhanced Monitoring and Alerting:** Implement more detailed monitoring and alerting using Cloud Monitoring. This would involve creating custom metrics, setting up dashboards to visualize application performance, and configuring alerts to notify the team of any issues.
+*   **Security Hardening:**
+    *   **Vulnerability Scanning:** Integrate automated vulnerability scanning of the container images into the CI/CD pipeline.
+    *   **IAM Best Practices:** Create a dedicated service account for the Cloud Run service with the principle of least privilege.
+    *   **WAF Protection:** Implement Google Cloud Armor to protect the application from common web-based attacks.
+*   **Advanced Health Checks:** Implement a dedicated health check endpoint in the Node.js application to provide more accurate health status to the load balancer.
+*   **Terraform State Management:** Use a remote backend like a Google Cloud Storage bucket for storing the Terraform state to improve security and collaboration.
