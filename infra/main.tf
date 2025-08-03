@@ -27,8 +27,7 @@ module "cloud_run_service" {
   service_name = each.value
   location     = each.key
   image        = "us-central1-docker.pkg.dev/calin-rearc/rearc-quest/rearc-quest-submission:latest" # Assuming same image for both regions
-  # append to the secret word the deployemnt region to differentiate between deployments
-  secret_word = "${data.google_secret_manager_secret_version.secret_word.secret_data} - (running in ${each.key})"
+  secret_word = "${data.google_secret_manager_secret_version.secret_word.secret_data} - (running in ${each.key})" # Append to the secret word the deployemnt region to differentiate between deployments
 }
 
 data "google_client_config" "default" {}
