@@ -60,6 +60,28 @@ The application expects a secret word to be available as an environment variable
 
 The Terraform configuration will automatically fetch the latest version of this secret and inject it into the Cloud Run services.
 
+## Generating the Local SSL Certificate
+
+The Global Load Balancer requires an SSL certificate and private key to serve HTTPS traffic. 
+
+For local development and demonstration purposes, we use `mkcert` to generate a locally-trusted certificate. These files are **not** checked into the repository for security reasons.
+
+To create you own self-signed certificate, follow these steps:
+
+1.  **Install mkcert:** Follow the installation instructions for your operating system on the mkcert GitHub repository.
+
+2.  **Install the local CA:** Run the following command to create a local certificate authority.
+    ```bash
+    mkcert -install
+    ```
+
+3.  **Generate the certificate and key:** Navigate to the `infra` directory and run the following command to generate the required files.
+
+    ```bash
+    cd infra
+    mkcert -key-file local.dev-key.pem -cert-file local.dev.pem "local.dev"
+    ```
+
 ## Infrastructure Deployment with Terraform
 
 1.  **Initialize Terraform:**

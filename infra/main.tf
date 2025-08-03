@@ -36,21 +36,13 @@ resource "google_compute_global_address" "default" {
   name = "rearc-quest-glb-ip"
 }
 
-resource "google_compute_region_network_endpoint_group" "cloud_run_neg_us" {
-  name                  = "rearc-quest-cloud-run-neg-us"
+resource "google_compute_region_network_endpoint_group" "cloud_run_neg" {
+  for_each              = var.deployment_regions
+  name                  = "rearc-quest-cloud-run-neg-${each.key}"
   network_endpoint_type = "SERVERLESS"
-  region                = "us-central1"
+  region                = each.key
   cloud_run {
-    service = module.cloud_run_service["us-central1"].service_name
-  }
-}
-
-resource "google_compute_region_network_endpoint_group" "cloud_run_neg_eu" {
-  name                  = "rearc-quest-cloud-run-neg-eu"
-  network_endpoint_type = "SERVERLESS"
-  region                = "europe-west1"
-  cloud_run {
-    service = module.cloud_run_service["europe-west1"].service_name
+    service = module.cloud_run_service[each.key].service_name
   }
 }
 
@@ -58,14 +50,13 @@ resource "google_compute_backend_service" "cloud_run_backend_global" {
   name                  = "rearc-quest-cloud-run-backend-global"
   protocol              = "HTTPS"
   port_name             = "http"
-  load_balancing_scheme = "EXTERNAL" # Required for global external HTTP(S) load balancers
+  load_balancing_scheme = "EXTERNAL_MANAGED" # For global external HTTP(S) load balancers
 
-  backend {
-    group = google_compute_region_network_endpoint_group.cloud_run_neg_us.id
-  }
-
-  backend {
-    group = google_compute_region_network_endpoint_group.cloud_run_neg_eu.id
+  dynamic "backend" {
+    for_each = google_compute_region_network_endpoint_group.cloud_run_neg
+    content {
+      group = backend.value.id
+    }
   }
 }
 
@@ -80,6 +71,50 @@ resource "google_compute_url_map" "default" {
 resource "google_compute_target_http_proxy" "default" {
   name    = "rearc-quest-http-proxy"
   url_map = google_compute_url_map.default.id
+}
+
+resource "google_secret_manager_secret" "ssl_certificate" {
+  secret_id = "ssl-certificate"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "ssl_certificate" {
+  secret      = google_secret_manager_secret.ssl_certificate.id
+  secret_data = file("./local.dev.pem")
+}
+
+resource "google_secret_manager_secret" "ssl_private_key" {
+  secret_id = "ssl-private-key"
+  replication { 
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "ssl_private_key" {
+  secret      = google_secret_manager_secret.ssl_private_key.id
+  secret_data = file("./local.dev-key.pem")
+}
+
+resource "google_compute_ssl_certificate" "default" {
+  name        = "rearc-quest-ssl-certificate"
+  private_key = google_secret_manager_secret_version.ssl_private_key.secret_data
+  certificate = google_secret_manager_secret_version.ssl_certificate.secret_data
+}
+
+resource "google_compute_target_https_proxy" "default" {
+  name             = "rearc-quest-https-proxy"
+  url_map          = google_compute_url_map.default.id
+  ssl_certificates = [google_compute_ssl_certificate.default.id]
+}
+
+resource "google_compute_global_forwarding_rule" "https_default" {
+  name                  = "rearc-quest-https-forwarding-rule"
+  ip_address            = google_compute_global_address.default.id
+  port_range            = "443"
+  target                = google_compute_target_https_proxy.default.id
+  load_balancing_scheme = "EXTERNAL"
 }
 
 resource "google_compute_global_forwarding_rule" "default" {
@@ -99,4 +134,3 @@ output "glb_ip_address" {
   value       = google_compute_global_address.default.address
   description = "The IP address of the Global Load Balancer."
 }
-
