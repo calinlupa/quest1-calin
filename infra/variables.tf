@@ -12,9 +12,9 @@ variable "project_id" {
 
 variable "deployment_regions" {
   description = "A map of Cloud Run regions and their corresponding service names."
-  type = map(string)
+  type        = map(string)
   default = {
-    us-central1 = "rearc-quest-submission-us"
+    us-central1  = "rearc-quest-submission-us"
     europe-west1 = "rearc-quest-submission-eu"
   }
 }
