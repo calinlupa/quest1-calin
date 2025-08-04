@@ -12,8 +12,17 @@ The project structure is as follows :
 *   **infra:** The infrastructure code is in the `infra` directory, and defines the following resources:
 
     *   **Google Cloud Run Services:** The application is deployed as two separate Cloud Run services, one in `us-central1` and another in `europe-west1`.
-    *   **Google Secret Manager:** A secret is used to store a `SECRET_WORD` which is then injected into the Cloud Run containers as an environment variable.
-    *   **Global Load Balancer:** A GLB is configured to distribute traffic between the two Cloud Run services, providing a single public IP address for users.
+    *   **Google Secret Manager:**
+        *   **`SECRET_WORD`**: A secret is used to store a `SECRET_WORD` which is then injected into the Cloud Run containers as an environment variable.
+        *   **SSL Certificate and Key**: The self-signed SSL certificate and private key are stored in Secret Manager to be securely used by the Global Load Balancer.
+    *   **Global Load Balancer (GLB):** A GLB is configured to distribute traffic between the two Cloud Run services, providing a single public IP address for users. The GLB is composed of the following resources:
+        *   **`google_compute_global_address`**: A static, global IP address for the GLB.
+        *   **`google_compute_region_network_endpoint_group` (NEG):** Two NEGs are created, one for each Cloud Run service, to connect the GLB to the serverless backends.
+        *   **`google_compute_backend_service`**: A backend service that manages the NEGs and defines health checks.
+        *   **`google_compute_url_map`**: A URL map that routes incoming requests to the backend service.
+        *   **`google_compute_target_http_proxy` and `google_compute_target_https_proxy`**: Proxies that receive HTTP and HTTPS traffic and forward it to the URL map.
+        *   **`google_compute_ssl_certificate`**: The SSL certificate used by the HTTPS proxy to terminate TLS.
+        *   **`google_compute_global_forwarding_rule`**: Two forwarding rules that direct traffic from the GLB's IP address (on ports 80 and 443) to the respective target proxies.
 
 ## Prerequisites
 

@@ -24,3 +24,27 @@ variable "secret_word" {
   type        = string
   sensitive   = true
 }
+
+variable "min_instance_count" {
+  description = "The minimum number of container instances that the service must run. Set to 0 to allow scaling to zero."
+  type        = number
+  default     = 0
+}
+
+variable "max_instance_count" {
+  description = "The maximum number of container instances that the service can scale up to."
+  type        = number
+  default     = 10 # A sensible default for scaling
+}
+
+variable "cpu_limit" {
+  description = "The CPU limit for the container instance."
+  type        = string
+  default     = "1000m"
+}
+
+variable "memory_limit" {
+  description = "The memory limit for the container instance."
+  type        = string
+  default     = "512Mi"
+}
